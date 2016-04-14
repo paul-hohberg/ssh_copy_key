@@ -1,0 +1,99 @@
+#!/usr/bin/expect
+
+#A script to deploy ssh keys to multiple hosts read from a file.
+#Written by Paul Hohberg phohberg@it.ucla.edu
+#Requires ssh-copy-id
+
+set timeout 30
+
+exec clear >@ stdout
+send_user "This script will copy your public ssh key to all hosts
+listed in the hosts.txt file in the current directory
+using the username and password you are prompted for below.\n\n"
+
+#Capture username and password once to send to list of hosts
+
+send_user "Enter Remote Username: "
+expect_user {
+            -re "(.*)\n" {
+                         set user $expect_out(1,string)
+                         } timeout {
+                         send_user "\n\username entry timed out\n"
+                         exit
+                         }
+}
+
+stty -echo
+
+send_user "Enter Remote Password: "
+expect_user {
+            -re "(.*)\n" {
+                         send_user "\n"
+                         set passwd $expect_out(1,string)
+                      	 } timeout {
+                         send_user "\n\password entry timed out\n"
+                         exit
+                     	 } 
+}
+send_user "Verify Password:"
+expect_user {
+            -re "(.*)\n" {
+                         send_user "\n"
+                      	 } timeout {
+                         send_user "\n\password entry timed out\n"
+                         exit
+                     	 } 
+}
+
+stty echo
+
+#Verify password
+if {[string compare $passwd \
+$expect_out(1,string)] != 0} { send_user "Passwords do not match\n"
+exit }
+
+#Log in and copy key supplying provided password for each server in host file. Quit on error.
+set hostlist [open ./hosts.txt]
+set srvrs [read $hostlist]
+close $hostlist
+
+foreach line $srvrs {
+
+        spawn ./ssh-copy-id.sh $user@$line
+        expect {
+        password: {send "$passwd\r"; exp_continue}
+        "Permission denied, please try again." {
+                send_user "Incorrect password quitting now to avoid lock out.\n"
+                exit
+                }
+        "ssh: Could not resolve hostname" {
+        		send_user "Please correct line for $line in hosts file and try again.\n"
+        		exit
+        		}
+        "No route to host" {
+        		send_user "$line unreachable. Please correct hosts file and try again."
+        		exit
+        		}
+    	"Connection refused" {
+    			send_user "Cannot connect to $line.\n"
+    			exit
+    			}
+    	"Are you sure you want to continue connecting (yes/no)?" {
+    			send "yes\r"
+    			expect password:
+    			send "$passwd\r"; exp_continue
+    			}
+        timeout {
+        		send_user "Unable to reach $line. Please correct hosts file and try again."
+        		exit
+        		}
+        }
+}
+
+#Paranoia
+set expect_out(1,string) clrpass
+set user clrusr
+set passwd clrpass
+#We Did It
+send_user "\nKeys copied successfully.\n"
+exit 0
