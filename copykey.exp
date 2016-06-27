@@ -1,7 +1,7 @@
 #!/usr/bin/expect
 
 #A script to deploy ssh keys to multiple hosts read from a file.
-#Written by Paul Hohberg phohberg@it.ucla.edu
+#Written by Paul Hohberg
 #Requires ssh-copy-id
 
 set timeout 30
